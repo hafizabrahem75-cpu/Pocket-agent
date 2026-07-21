@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Pocket Agent UI"
+version = "1.0.0"
+id = "artifacts/pocket-agent-ui"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21238
+
+[services.development]
+run = "pnpm --filter @workspace/pocket-agent-ui run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pocket-agent-ui", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/pocket-agent-ui/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21238"
+BASE_PATH = "/"
