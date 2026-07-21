@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type Role = 'user' | 'system' | 'error';
+type Role = 'user' | 'system' | 'error' | 'ai';
 
 interface Message {
   id: string;
@@ -97,8 +97,11 @@ const HELP_LINES = [
   '    --desc "…"                  New description',
   '    --status active|inactive|paused',
   '  delete <id|name>              Delete an agent',
+  '  provider                      Show current AI provider',
   '  clear                         Clear the chat',
   '  help                          Show this message',
+  '',
+  'Anything else is sent to the AI assistant.',
 ];
 
 // ── Welcome ────────────────────────────────────────────────────────────────
@@ -107,7 +110,7 @@ const WELCOME_LINES = [
   'Pocket Agent  v0.1',
   '─────────────────────',
   'Manage your agents from this terminal.',
-  'Type  help  to see available commands.',
+  'Type  help  for commands, or ask anything freely.',
 ];
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -198,11 +201,7 @@ export default function App() {
             method: 'POST',
             body: JSON.stringify(body),
           });
-          push(msg('system', [
-            `Agent created:`,
-            '',
-            ...formatAgent(agent),
-          ]));
+          push(msg('system', ['Agent created:', '', ...formatAgent(agent)]));
           break;
         }
 
@@ -257,8 +256,23 @@ export default function App() {
           break;
         }
 
+        case 'provider': {
+          const info = await api<{ name: string; available: boolean }>('/chat/provider');
+          push(msg('system', [
+            `AI provider:  ${info.name}`,
+            `Available:    ${info.available ? 'yes' : 'no'}`,
+          ]));
+          break;
+        }
+
         default: {
-          push(msg('error', [`Unknown command: ${cmd}. Type  help  to see available commands.`]));
+          // Route anything that isn't a known command to the AI assistant
+          const result = await api<{ reply: string; provider: string; model: string }>('/chat', {
+            method: 'POST',
+            body: JSON.stringify({ message: trimmed }),
+          });
+          push(msg('ai', result.reply.split('\n')));
+          break;
         }
       }
     } catch (err) {
@@ -325,7 +339,7 @@ export default function App() {
           ))}
           {busy && (
             <div className="text-muted-foreground animate-pulse pl-1">
-              working…
+              thinking…
             </div>
           )}
           <div ref={bottomRef} />
@@ -341,7 +355,7 @@ export default function App() {
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={busy}
-            placeholder="type a command…"
+            placeholder="command or question…"
             autoComplete="off"
             spellCheck={false}
             className="flex-1 bg-transparent font-mono text-sm text-foreground placeholder:text-muted-foreground outline-none disabled:opacity-40"
@@ -375,12 +389,22 @@ function MessageBubble({ message }: { message: Message }) {
     );
   }
 
+  if (message.role === 'ai') {
+    return (
+      <div className="flex justify-start gap-2">
+        <span className="text-xs text-primary/60 font-mono mt-2.5 shrink-0 select-none">AI›</span>
+        <div className="max-w-[88%] rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-foreground/90">
+          {message.lines.map((l, i) => <div key={i}>{l || '\u00a0'}</div>)}
+        </div>
+      </div>
+    );
+  }
+
   // system
   return (
     <div className="flex justify-start">
       <div className="max-w-[90%] rounded-lg bg-card border border-border px-3 py-2 text-foreground/90 space-y-0">
         {message.lines.map((l, i) => {
-          // Highlight status badges inline
           const statusMatch = l.match(/\[(active|inactive|paused)\]/);
           if (statusMatch) {
             const status = statusMatch[1] as AgentStatus;

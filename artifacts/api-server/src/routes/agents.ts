@@ -1,10 +1,16 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { randomUUID } from "crypto";
+import {
+  getAllAgents,
+  getAgent,
+  createAgent,
+  updateAgent,
+  deleteAgent,
+} from "../store/agents.js";
 
 const router: IRouter = Router();
 
-// ── Schemas ──────────────────────────────────────────────────────────────────
+// ── Schemas ───────────────────────────────────────────────────────────────────
 
 const AgentStatusEnum = z.enum(["active", "inactive", "paused"]);
 
@@ -20,24 +26,7 @@ const UpdateAgentSchema = z.object({
   status: AgentStatusEnum.optional(),
 });
 
-// ── In-memory store ───────────────────────────────────────────────────────────
-
-interface Agent {
-  id: string;
-  name: string;
-  description?: string;
-  status: "active" | "inactive" | "paused";
-  createdAt: string;
-  updatedAt: string;
-}
-
-const agents = new Map<string, Agent>();
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function now(): string {
-  return new Date().toISOString();
-}
 
 function agentNotFound(res: Response): void {
   res.status(404).json({ error: "not_found", message: "Agent not found" });
@@ -47,78 +36,43 @@ function agentNotFound(res: Response): void {
 
 // GET /api/agents
 router.get("/agents", (_req: Request, res: Response) => {
-  res.json([...agents.values()]);
+  res.json(getAllAgents());
 });
 
 // POST /api/agents
 router.post("/agents", (req: Request, res: Response) => {
   const parsed = CreateAgentSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({
-      error: "validation_error",
-      message: parsed.error.message,
-    });
+    res.status(400).json({ error: "validation_error", message: parsed.error.message });
     return;
   }
-
-  const ts = now();
-  const agent: Agent = {
-    id: randomUUID(),
-    name: parsed.data.name,
-    description: parsed.data.description,
-    status: parsed.data.status,
-    createdAt: ts,
-    updatedAt: ts,
-  };
-
-  agents.set(agent.id, agent);
+  const agent = createAgent(parsed.data);
   res.status(201).json(agent);
 });
 
 // GET /api/agents/:id
 router.get("/agents/:id", (req: Request, res: Response) => {
-  const agent = agents.get(req.params.id);
-  if (!agent) {
-    agentNotFound(res);
-    return;
-  }
+  const agent = getAgent(req.params.id);
+  if (!agent) { agentNotFound(res); return; }
   res.json(agent);
 });
 
 // PATCH /api/agents/:id
 router.patch("/agents/:id", (req: Request, res: Response) => {
-  const agent = agents.get(req.params.id);
-  if (!agent) {
-    agentNotFound(res);
-    return;
-  }
-
   const parsed = UpdateAgentSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({
-      error: "validation_error",
-      message: parsed.error.message,
-    });
+    res.status(400).json({ error: "validation_error", message: parsed.error.message });
     return;
   }
-
-  const updated: Agent = {
-    ...agent,
-    ...parsed.data,
-    updatedAt: now(),
-  };
-
-  agents.set(updated.id, updated);
-  res.json(updated);
+  const agent = updateAgent(req.params.id, parsed.data);
+  if (!agent) { agentNotFound(res); return; }
+  res.json(agent);
 });
 
 // DELETE /api/agents/:id
 router.delete("/agents/:id", (req: Request, res: Response) => {
-  if (!agents.has(req.params.id)) {
-    agentNotFound(res);
-    return;
-  }
-  agents.delete(req.params.id);
+  const deleted = deleteAgent(req.params.id);
+  if (!deleted) { agentNotFound(res); return; }
   res.status(204).send();
 });
 
