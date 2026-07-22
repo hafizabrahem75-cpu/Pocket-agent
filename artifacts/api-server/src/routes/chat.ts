@@ -12,7 +12,7 @@ const ChatInputSchema = z.object({
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-// POST /api/chat — send a message, get an AI-generated reply
+// POST /api/chat — send a message, get an AI-generated reply (may include tool calls)
 router.post("/chat", async (req: Request, res: Response) => {
   const parsed = ChatInputSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -23,8 +23,13 @@ router.post("/chat", async (req: Request, res: Response) => {
     return;
   }
 
-  const result = await runChat({ message: parsed.data.message });
-  res.json(result);
+  try {
+    const result = await runChat({ message: parsed.data.message });
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    res.status(500).json({ error: "chat_error", message });
+  }
 });
 
 // GET /api/chat/provider — inspect the current AI provider
