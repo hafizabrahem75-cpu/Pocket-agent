@@ -1,32 +1,30 @@
 import type { IAIProvider } from "./types.js";
 import { StubProvider } from "./providers/stub.js";
+import { GroqProvider } from "./providers/groq.js";
 
 // ── AI Provider Configuration ─────────────────────────────────────────────────
 //
 // This is the single place where a provider is selected and instantiated.
-// To plug in a real provider:
+// To plug in a new provider:
 //
 //   1. Create a new file in src/ai/providers/ that implements IAIProvider.
 //   2. Add an env-var check below and return the new provider.
 //
-// Example (OpenAI):
-//   import { OpenAIProvider } from "./providers/openai.js";
-//   if (process.env.OPENAI_API_KEY) return new OpenAIProvider();
+// Providers are checked in order. The first one whose env var is set wins.
+// If none are configured, the StubProvider is used as a fallback.
 //
-// Example (Anthropic):
-//   import { AnthropicProvider } from "./providers/anthropic.js";
-//   if (process.env.ANTHROPIC_API_KEY) return new AnthropicProvider();
+// To add Gemini:
+//   import { GeminiProvider } from "./providers/gemini.js";
+//   if (process.env.GEMINI_API_KEY) return new GeminiProvider();
 //
-// Example (Ollama / local):
-//   import { OllamaProvider } from "./providers/ollama.js";
-//   if (process.env.OLLAMA_BASE_URL) return new OllamaProvider();
+// To add OpenRouter:
+//   import { OpenRouterProvider } from "./providers/openrouter.js";
+//   if (process.env.OPENROUTER_API_KEY) return new OpenRouterProvider();
 
 function createProvider(): IAIProvider {
-  // ── Add provider checks here ──────────────────────────────────────────────
-  // if (process.env.OPENAI_API_KEY)     return new OpenAIProvider();
-  // if (process.env.ANTHROPIC_API_KEY)  return new AnthropicProvider();
-  // if (process.env.OLLAMA_BASE_URL)    return new OllamaProvider();
-  // ─────────────────────────────────────────────────────────────────────────
+  if (process.env.GROQ_API_KEY) return new GroqProvider(process.env.GROQ_API_KEY);
+  // if (process.env.GEMINI_API_KEY)     return new GeminiProvider();
+  // if (process.env.OPENROUTER_API_KEY) return new OpenRouterProvider();
 
   return new StubProvider();
 }

@@ -52,7 +52,7 @@ router.post("/agents", (req: Request, res: Response) => {
 
 // GET /api/agents/:id
 router.get("/agents/:id", (req: Request, res: Response) => {
-  const agent = getAgent(req.params.id);
+  const agent = getAgent(String(req.params.id));
   if (!agent) { agentNotFound(res); return; }
   res.json(agent);
 });
@@ -64,14 +64,14 @@ router.patch("/agents/:id", (req: Request, res: Response) => {
     res.status(400).json({ error: "validation_error", message: parsed.error.message });
     return;
   }
-  const agent = updateAgent(req.params.id, parsed.data);
+  const agent = updateAgent(String(req.params.id), parsed.data);
   if (!agent) { agentNotFound(res); return; }
   res.json(agent);
 });
 
 // DELETE /api/agents/:id
 router.delete("/agents/:id", (req: Request, res: Response) => {
-  const deleted = deleteAgent(req.params.id);
+  const deleted = deleteAgent(String(req.params.id));
   if (!deleted) { agentNotFound(res); return; }
   res.status(204).send();
 });
