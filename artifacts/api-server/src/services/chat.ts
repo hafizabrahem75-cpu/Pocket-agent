@@ -1,8 +1,10 @@
 import { aiProvider } from "../ai/config.js";
 import { getAllAgents } from "../store/agents.js";
 import { toolRegistry } from "../tools/index.js";
+import { analyzeProject } from "../analyzer/index.js";
 import { WorkspaceError } from "../workspace/types.js";
 import type { ChatMessage, ChatOptions } from "../ai/types.js";
+import type { ProjectAnalysis } from "../analyzer/types.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -109,6 +111,35 @@ async function executeTool(
   }
 }
 
+// ── Project context ───────────────────────────────────────────────────────────
+
+function buildProjectBlock(analysis: ProjectAnalysis): string {
+  const { projectType, frameworks, packageManager, summary } = analysis;
+
+  const type = [
+    projectType.primary,
+    projectType.language !== "unknown" ? `(${projectType.language})` : "",
+    projectType.tags.length ? `[${projectType.tags.join(", ")}]` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const fw = frameworks
+    .filter((f) => f.confidence !== "possible")
+    .map((f) => (f.version ? `${f.name} ${f.version}` : f.name))
+    .join(", ");
+
+  const pm = packageManager.isMonorepo
+    ? `${packageManager.name} (workspace)`
+    : packageManager.name;
+
+  return `Project context:
+  Type: ${type}
+  Frameworks: ${fw || "none detected"}
+  Package manager: ${pm}
+  Summary: ${summary}`;
+}
+
 // ── System prompt ─────────────────────────────────────────────────────────────
 
 function buildToolsBlock(): string {
@@ -140,7 +171,7 @@ Available tools:
 ${descriptions}`;
 }
 
-function buildSystemPrompt(): string {
+function buildSystemPrompt(analysis: ProjectAnalysis): string {
   const agents = getAllAgents();
 
   const agentList =
@@ -158,6 +189,8 @@ function buildSystemPrompt(): string {
 Current agents:
 ${agentList}
 
+${buildProjectBlock(analysis)}
+
 Help the user manage their agents, answer questions about them, suggest names or configurations, or explain what agents can do.
 Be concise and practical. If asked to perform an action (create, delete, update), explain how to do it using the terminal commands rather than doing it yourself.
 ${buildToolsBlock()}`;
@@ -168,8 +201,10 @@ ${buildToolsBlock()}`;
 const MAX_TOOL_ROUNDS = 5;
 
 export async function runChat(req: ChatRequest): Promise<ChatResponse> {
+  const analysis = await analyzeProject();
+
   const messages: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt() },
+    { role: "system", content: buildSystemPrompt(analysis) },
     { role: "user", content: req.message },
   ];
 
