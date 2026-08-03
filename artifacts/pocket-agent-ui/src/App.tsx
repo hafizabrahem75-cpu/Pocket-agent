@@ -2,12 +2,26 @@ import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type Role = 'user' | 'system' | 'error' | 'ai';
+type Role = 'user' | 'system' | 'error' | 'ai' | 'tool';
 
 interface Message {
   id: string;
   role: Role;
   lines: string[];
+}
+
+interface ToolInvocation {
+  name: string;
+  input: Record<string, unknown>;
+  output: string;
+  ok: boolean;
+}
+
+interface ChatResponse {
+  reply: string;
+  provider: string;
+  model: string;
+  toolInvocations: ToolInvocation[];
 }
 
 type AgentStatus = 'active' | 'inactive' | 'paused';
@@ -267,10 +281,17 @@ export default function App() {
 
         default: {
           // Route anything that isn't a known command to the AI assistant
-          const result = await api<{ reply: string; provider: string; model: string }>('/chat', {
+          const result = await api<ChatResponse>('/chat', {
             method: 'POST',
             body: JSON.stringify({ message: trimmed }),
           });
+          if (result.toolInvocations?.length) {
+            push(msg('tool', result.toolInvocations.map(t => {
+              const inputSummary = JSON.stringify(t.input);
+              const status = t.ok ? '✓' : '✗';
+              return `${status}  ${t.name}  ${inputSummary}`;
+            })));
+          }
           push(msg('ai', result.reply.split('\n')));
           break;
         }
@@ -384,6 +405,27 @@ function MessageBubble({ message }: { message: Message }) {
       <div className="flex justify-start">
         <div className="max-w-[90%] rounded-lg bg-destructive/10 border border-destructive/25 px-3 py-2 text-destructive">
           {message.lines.map((l, i) => <div key={i}>{l || '\u00a0'}</div>)}
+        </div>
+      </div>
+    );
+  }
+
+  if (message.role === 'tool') {
+    return (
+      <div className="flex justify-start gap-2">
+        <span className="text-xs text-muted-foreground font-mono mt-2 shrink-0 select-none">⚙›</span>
+        <div className="max-w-[90%] rounded-lg bg-muted/40 border border-border/50 px-3 py-2 space-y-1">
+          {message.lines.map((l, i) => {
+            const ok = l.startsWith('✓');
+            return (
+              <div key={i} className="font-mono text-xs flex items-baseline gap-2">
+                <span className={ok ? 'text-emerald-400 shrink-0' : 'text-destructive shrink-0'}>
+                  {ok ? '✓' : '✗'}
+                </span>
+                <span className="text-muted-foreground break-all">{l.slice(3)}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
