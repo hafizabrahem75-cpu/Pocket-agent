@@ -1,5 +1,5 @@
 import { aiProvider } from "../ai/config.js";
-import { getAllAgents } from "../store/agents.js";
+import { getAllAgents, getAgent } from "../store/agents.js";
 import { toolRegistry } from "../tools/index.js";
 import { analyzeProject } from "../analyzer/index.js";
 import { WorkspaceError } from "../workspace/types.js";
@@ -10,6 +10,8 @@ import type { ProjectAnalysis } from "../analyzer/types.js";
 
 export interface ChatRequest {
   message: string;
+  /** If provided, scopes analysis and file tools to this agent's workspacePath. */
+  agentId?: string;
 }
 
 export interface ToolInvocation {
@@ -82,9 +84,28 @@ function parseToolCall(content: string): ParsedToolCall | null {
 
 // ── Tool execution ────────────────────────────────────────────────────────────
 
+// Tools that accept a "path" input and should be scoped to the agent workspace.
+const FILE_TOOLS = new Set(["read_file", "write_file"]);
+
+/**
+ * Prepend the agent's workspacePath to any "path" input field so that file
+ * tools operate inside the agent's directory rather than the workspace root.
+ */
+function scopeInput(
+  name: string,
+  input: Record<string, unknown>,
+  workspacePath: string | undefined,
+): Record<string, unknown> {
+  if (!workspacePath || !FILE_TOOLS.has(name)) return input;
+  if (typeof input["path"] !== "string") return input;
+  const joined = `${workspacePath}/${input["path"]}`.replace(/\/+/g, "/");
+  return { ...input, path: joined };
+}
+
 async function executeTool(
   name: string,
   input: Record<string, unknown>,
+  workspacePath?: string,
 ): Promise<{ output: string; ok: boolean }> {
   const tool = toolRegistry.get(name);
   if (!tool) {
@@ -97,8 +118,10 @@ async function executeTool(
     };
   }
 
+  const scopedInput = scopeInput(name, input, workspacePath);
+
   try {
-    const result = await tool.execute(input);
+    const result = await tool.execute(scopedInput);
     return { output: JSON.stringify(result), ok: true };
   } catch (err) {
     const message =
@@ -201,7 +224,12 @@ ${buildToolsBlock()}`;
 const MAX_TOOL_ROUNDS = 5;
 
 export async function runChat(req: ChatRequest): Promise<ChatResponse> {
-  const analysis = await analyzeProject();
+  const agent = req.agentId ? getAgent(req.agentId) : undefined;
+  const workspacePath = agent?.workspacePath;
+
+  const analysis = await analyzeProject(
+    workspacePath ? { rootPath: workspacePath } : {},
+  );
 
   const messages: ChatMessage[] = [
     { role: "system", content: buildSystemPrompt(analysis) },
@@ -217,7 +245,7 @@ export async function runChat(req: ChatRequest): Promise<ChatResponse> {
     const toolCall = parseToolCall(finalResult.content);
     if (!toolCall) break; // plain reply — we're done
 
-    const { output, ok } = await executeTool(toolCall.name, toolCall.input);
+    const { output, ok } = await executeTool(toolCall.name, toolCall.input, workspacePath);
 
     toolInvocations.push({
       name: toolCall.name,

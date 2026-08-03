@@ -9,6 +9,8 @@ export interface Agent {
   name: string;
   description?: string;
   status: AgentStatus;
+  /** Workspace-relative path this agent operates on (e.g. "artifacts/pocket-agent-ui"). */
+  workspacePath?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -28,7 +30,7 @@ export function getAgent(id: string): Agent | undefined {
 }
 
 export function createAgent(
-  data: Pick<Agent, "name" | "status"> & { description?: string }
+  data: Pick<Agent, "name" | "status"> & { description?: string; workspacePath?: string }
 ): Agent {
   const now = new Date().toISOString();
   const agent: Agent = { id: randomUUID(), ...data, createdAt: now, updatedAt: now };
@@ -38,7 +40,7 @@ export function createAgent(
 
 export function updateAgent(
   id: string,
-  patch: Partial<Pick<Agent, "name" | "description" | "status">>
+  patch: Partial<Pick<Agent, "name" | "description" | "status" | "workspacePath">>
 ): Agent | null {
   const agent = store.get(id);
   if (!agent) return null;

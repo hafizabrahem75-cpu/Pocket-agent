@@ -18,12 +18,14 @@ const CreateAgentSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
   status: AgentStatusEnum.optional().default("active"),
+  workspacePath: z.string().max(500).optional(),
 });
 
 const UpdateAgentSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
   status: AgentStatusEnum.optional(),
+  workspacePath: z.string().max(500).optional(),
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

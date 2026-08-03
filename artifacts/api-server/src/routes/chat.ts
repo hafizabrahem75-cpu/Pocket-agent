@@ -8,6 +8,7 @@ const router: IRouter = Router();
 
 const ChatInputSchema = z.object({
   message: z.string().min(1).max(4000),
+  agentId: z.string().uuid().optional(),
 });
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -23,7 +24,7 @@ router.post("/chat", async (req: Request, res: Response) => {
     return;
   }
 
-  const result = await runChat({ message: parsed.data.message });
+  const result = await runChat({ message: parsed.data.message, agentId: parsed.data.agentId });
   res.json(result);
 });
 
