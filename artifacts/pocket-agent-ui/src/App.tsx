@@ -31,6 +31,7 @@ interface Agent {
   name: string;
   description?: string;
   status: AgentStatus;
+  workspacePath?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -231,6 +232,7 @@ export default function App() {
             `  ID:          ${agent.id}`,
             `  Status:      ${agent.status}`,
             `  Description: ${agent.description ?? '—'}`,
+            `  Workspace:   ${agent.workspacePath ?? '—'}`,
             `  Created:     ${new Date(agent.createdAt).toLocaleString()}`,
             `  Updated:     ${new Date(agent.updatedAt).toLocaleString()}`,
           ]));
