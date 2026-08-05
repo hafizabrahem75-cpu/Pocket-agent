@@ -7,6 +7,7 @@ import previewRouter from "./preview.js";
 import secretsRouter from "./secrets.js";
 import terminalRouter from "./terminal.js";
 import buildRouter from "./build.js";
+import runRouter from "./run.js";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(previewRouter);
 router.use(secretsRouter);
 router.use(terminalRouter);
 router.use(buildRouter);
+router.use(runRouter);
 
 export default router;
