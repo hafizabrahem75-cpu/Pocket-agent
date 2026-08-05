@@ -8,6 +8,7 @@ import secretsRouter from "./secrets.js";
 import terminalRouter from "./terminal.js";
 import buildRouter from "./build.js";
 import runRouter from "./run.js";
+import deployRouter from "./deploy.js";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(secretsRouter);
 router.use(terminalRouter);
 router.use(buildRouter);
 router.use(runRouter);
+router.use(deployRouter);
 
 export default router;
