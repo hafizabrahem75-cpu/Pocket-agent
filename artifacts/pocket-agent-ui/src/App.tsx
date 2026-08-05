@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
+import { ProjectInfoPanel, type PanelAgent } from './components/ProjectInfoPanel';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -136,6 +137,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [histIdx, setHistIdx] = useState(-1);
+  const [selectedAgent, setSelectedAgent] = useState<PanelAgent | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -236,6 +238,7 @@ export default function App() {
             `  Created:     ${new Date(agent.createdAt).toLocaleString()}`,
             `  Updated:     ${new Date(agent.updatedAt).toLocaleString()}`,
           ]));
+          setSelectedAgent({ id: agent.id, name: agent.name, workspacePath: agent.workspacePath });
           break;
         }
 
@@ -336,9 +339,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center py-8 px-4">
+      <div className="w-full max-w-5xl flex gap-4 items-start" style={{ height: 'calc(100vh - 4rem)' }}>
       {/* Window frame */}
-      <div className="w-full max-w-2xl flex flex-col rounded-xl border border-border overflow-hidden shadow-2xl"
-           style={{ height: 'calc(100vh - 4rem)' }}>
+      <div className="flex-1 min-w-0 flex flex-col rounded-xl border border-border overflow-hidden shadow-2xl h-full">
 
         {/* Title bar */}
         <div className="flex items-center gap-2 px-4 py-3 bg-card border-b border-border shrink-0">
@@ -385,7 +388,9 @@ export default function App() {
           />
         </div>
       </div>
+      <ProjectInfoPanel agent={selectedAgent} />
     </div>
+  </div>
   );
 }
 
