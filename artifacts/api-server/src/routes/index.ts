@@ -5,6 +5,7 @@ import chatRouter from "./chat.js";
 import analyzerRouter from "./analyzer.js";
 import previewRouter from "./preview.js";
 import secretsRouter from "./secrets.js";
+import terminalRouter from "./terminal.js";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(chatRouter);
 router.use(analyzerRouter);
 router.use(previewRouter);
 router.use(secretsRouter);
+router.use(terminalRouter);
 
 export default router;
