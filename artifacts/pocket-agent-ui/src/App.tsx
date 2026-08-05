@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import { ProjectInfoPanel, type PanelAgent } from './components/ProjectInfoPanel';
+import { FileExplorer } from './components/FileExplorer';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -339,7 +340,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center py-8 px-4">
-      <div className="w-full max-w-5xl flex gap-4 items-start" style={{ height: 'calc(100vh - 4rem)' }}>
+      <div className="w-full max-w-7xl flex gap-3 items-start" style={{ height: 'calc(100vh - 4rem)' }}>
+      <FileExplorer />
       {/* Window frame */}
       <div className="flex-1 min-w-0 flex flex-col rounded-xl border border-border overflow-hidden shadow-2xl h-full">
 
