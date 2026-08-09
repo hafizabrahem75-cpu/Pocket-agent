@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import { ProjectInfoPanel, type PanelAgent } from './components/ProjectInfoPanel';
 import { FileExplorer } from './components/FileExplorer';
+import { CodeEditor } from './components/CodeEditor';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,7 @@ export default function App() {
   const [history, setHistory] = useState<string[]>([]);
   const [histIdx, setHistIdx] = useState(-1);
   const [selectedAgent, setSelectedAgent] = useState<PanelAgent | null>(null);
+  const [openFilePath, setOpenFilePath] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -341,7 +343,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center py-8 px-4">
       <div className="w-full max-w-7xl flex gap-3 items-start" style={{ height: 'calc(100vh - 4rem)' }}>
-      <FileExplorer />
+       <FileExplorer onOpenFile={setOpenFilePath} />
       {/* Window frame */}
       <div className="flex-1 min-w-0 flex flex-col rounded-xl border border-border overflow-hidden shadow-2xl h-full">
 
@@ -356,6 +358,8 @@ export default function App() {
             pocket-agent
           </span>
         </div>
+
+         {openFilePath && <CodeEditor path={openFilePath} />}
 
         {/* Message list */}
         <div

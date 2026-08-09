@@ -9,6 +9,7 @@ import terminalRouter from "./terminal.js";
 import buildRouter from "./build.js";
 import runRouter from "./run.js";
 import deployRouter from "./deploy.js";
+import workspaceRouter from "./workspace.js";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(terminalRouter);
 router.use(buildRouter);
 router.use(runRouter);
 router.use(deployRouter);
+router.use(workspaceRouter);
 
 export default router;

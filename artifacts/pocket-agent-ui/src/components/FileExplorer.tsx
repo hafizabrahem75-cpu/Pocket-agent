@@ -84,16 +84,18 @@ function displayPath(p: string): string {
 function EntryRow({
   node,
   onNavigate,
+  onOpenFile,
 }: {
   node: FileNode;
   onNavigate: (n: FileNode) => void;
+  onOpenFile: (path: string) => void;
 }) {
   const isDir = node.type === 'directory';
   return (
     <button
       className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors
         hover:bg-muted/40 ${isDir ? 'cursor-pointer' : 'cursor-default'}`}
-      onClick={() => { if (isDir) onNavigate(node); }}
+      onClick={() => { if (isDir) onNavigate(node); else onOpenFile(node.relativePath); }}
     >
       {isDir
         ? <Folder className="w-3.5 h-3.5 text-primary/70 shrink-0" />
@@ -106,16 +108,18 @@ function EntryRow({
 function SearchRow({
   node,
   onNavigate,
+  onOpenFile,
 }: {
   node: FileNode;
   onNavigate: (n: FileNode) => void;
+  onOpenFile: (path: string) => void;
 }) {
   const isDir = node.type === 'directory';
   return (
     <button
       className={`w-full flex flex-col px-3 py-1.5 text-left transition-colors
         hover:bg-muted/40 ${isDir ? 'cursor-pointer' : 'cursor-default'}`}
-      onClick={() => { if (isDir) onNavigate(node); }}
+      onClick={() => { if (isDir) onNavigate(node); else onOpenFile(node.relativePath); }}
     >
       <div className="flex items-center gap-2">
         {isDir
@@ -132,7 +136,7 @@ function SearchRow({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function FileExplorer() {
+export function FileExplorer({ onOpenFile }: { onOpenFile: (path: string) => void }) {
   const [currentPath, setCurrentPath] = useState('.');
   const [entries,     setEntries]     = useState<FileNode[]>([]);
   const [loading,     setLoading]     = useState(false);
@@ -275,7 +279,7 @@ export function FileExplorer() {
           searchResults.length === 0
             ? <div className="px-3 py-3 font-mono text-xs text-muted-foreground">No matches.</div>
             : searchResults.map(node => (
-                <SearchRow key={node.relativePath} node={node} onNavigate={navigate} />
+                <SearchRow key={node.relativePath} node={node} onNavigate={navigate} onOpenFile={onOpenFile} />
               ))
         )}
 
@@ -284,7 +288,7 @@ export function FileExplorer() {
           sorted.length === 0
             ? <div className="px-3 py-3 font-mono text-xs text-muted-foreground">Empty.</div>
             : sorted.map(node => (
-                <EntryRow key={node.relativePath} node={node} onNavigate={navigate} />
+                <EntryRow key={node.relativePath} node={node} onNavigate={navigate} onOpenFile={onOpenFile} />
               ))
         )}
 
