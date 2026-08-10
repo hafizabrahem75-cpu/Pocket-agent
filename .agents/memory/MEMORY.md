@@ -1,2 +1,3 @@
 - [Project analyzer workspace root](analyzer-workspace-root.md) — relative paths must resolve from workspace root, not server CWD; WORKSPACE_ROOT is detected at startup by walking up for pnpm-workspace.yaml.
 - [Zod import path](zod-import.md) — import from "zod" directly, not "zod/v4"; esbuild resolution fails with the subpath.
+- [Run manager process lifecycle](run-manager-processes.md) — package-manager commands can outlive their direct child; future stop/restart logic must handle the full process group.

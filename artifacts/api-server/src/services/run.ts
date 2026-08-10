@@ -6,6 +6,10 @@
 
 import { analyzeProject } from "../analyzer/index.js";
 import type { DetectedFramework, PackageManagerName } from "../analyzer/types.js";
+import { spawn, type ChildProcess } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { WORKSPACE_ROOT } from "../lib/workspaceRoot.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,6 +21,26 @@ export interface RunInfo {
   /** Whether a supported run command could be determined. */
   supported: boolean;
 }
+
+export interface RunExecution {
+  status: "rejected" | "starting" | "running" | "exited" | "failed";
+  pid: number | null;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+}
+
+interface ManagedRun {
+  child: ChildProcess;
+  status: RunExecution["status"];
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+}
+
+const MAX_OUTPUT_BYTES = 64 * 1024;
+const STARTUP_WAIT_MS = 500;
+const activeRuns = new Map<string, ManagedRun>();
 
 // ── Framework → script mapping ────────────────────────────────────────────────
 // Ordered: more specific / higher-priority entries first.
@@ -81,6 +105,132 @@ function runCommand(pm: PackageManagerName, script: "dev" | "start"): string {
       // npm needs `run` for non-lifecycle scripts; "start" is a lifecycle script
       return script === "start" ? "npm start" : `npm run ${script}`;
   }
+}
+
+function getWorkspaceCwd(workspacePath: string | undefined): string | null {
+  if (!workspacePath) return null;
+
+  const cwd = path.resolve(WORKSPACE_ROOT, workspacePath);
+  const insideWorkspace =
+    cwd === WORKSPACE_ROOT || cwd.startsWith(`${WORKSPACE_ROOT}${path.sep}`);
+  if (!insideWorkspace) return null;
+
+  try {
+    if (!fs.statSync(cwd).isDirectory()) return null;
+  } catch {
+    return null;
+  }
+
+  return cwd;
+}
+
+function snapshotRun(run: ManagedRun): RunExecution {
+  return {
+    status: run.status,
+    pid: run.child.pid ?? null,
+    stdout: run.stdout,
+    stderr: run.stderr,
+    exitCode: run.exitCode,
+  };
+}
+
+/**
+ * Execute the command produced by detectRun() in the agent's workspace.
+ * The process is kept alive for dev servers, while the initial status/output
+ * is returned to the existing Run Manager caller.
+ */
+export async function runDetectedProject(
+  info: RunInfo,
+  workspacePath?: string,
+): Promise<RunExecution> {
+  if (!info.supported || !info.command) {
+    return {
+      status: "rejected",
+      pid: null,
+      stdout: "",
+      stderr: "No supported run command was detected.",
+      exitCode: null,
+    };
+  }
+
+  const cwd = getWorkspaceCwd(workspacePath);
+  if (!cwd) {
+    return {
+      status: "rejected",
+      pid: null,
+      stdout: "",
+      stderr: "An existing agent workspacePath is required to run the project.",
+      exitCode: null,
+    };
+  }
+
+  const existing = activeRuns.get(cwd);
+  if (existing && (existing.status === "starting" || existing.status === "running")) {
+    return snapshotRun(existing);
+  }
+
+  const [bin, ...args] = info.command.trim().split(/\s+/);
+  if (!bin) {
+    return {
+      status: "rejected",
+      pid: null,
+      stdout: "",
+      stderr: "The detected run command is empty.",
+      exitCode: null,
+    };
+  }
+
+  const child = spawn(bin, args, {
+    cwd,
+    env: { ...process.env },
+    shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  const run: ManagedRun = {
+    child,
+    status: "starting",
+    stdout: "",
+    stderr: "",
+    exitCode: null,
+  };
+  activeRuns.set(cwd, run);
+
+  const appendOutput = (target: "stdout" | "stderr", chunk: Buffer): void => {
+    run[target] = `${run[target]}${chunk.toString("utf-8")}`.slice(-MAX_OUTPUT_BYTES);
+  };
+
+  child.stdout.on("data", (chunk: Buffer) => appendOutput("stdout", chunk));
+  child.stderr.on("data", (chunk: Buffer) => appendOutput("stderr", chunk));
+  child.once("spawn", () => {
+    run.status = "running";
+  });
+  child.once("error", (error: Error) => {
+    run.status = "failed";
+    run.stderr = `${run.stderr}${error.message}`.slice(-MAX_OUTPUT_BYTES);
+  });
+  child.once("close", (code: number | null) => {
+    run.exitCode = code;
+    run.status = code === 0 ? "exited" : "failed";
+    if (activeRuns.get(cwd) !== run) return;
+    if (run.status === "exited" || run.status === "failed") {
+      activeRuns.delete(cwd);
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, STARTUP_WAIT_MS);
+    child.once("close", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    child.once("error", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+
+  return snapshotRun(run);
 }
 
 // ── Framework priority sort ───────────────────────────────────────────────────

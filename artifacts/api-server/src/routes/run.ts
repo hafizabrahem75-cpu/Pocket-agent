@@ -1,11 +1,10 @@
 // ── Route: POST /api/run/:agentId ─────────────────────────────────────────────
 //
-// Detects the run/dev command for the agent's workspace and returns it.
-// Commands are never executed — detection only.
+// Detects and starts the run/dev command for the agent's workspace.
 
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getAgent } from "../store/agents.js";
-import { detectRun } from "../services/run.js";
+import { detectRun, runDetectedProject } from "../services/run.js";
 
 const router: IRouter = Router();
 
@@ -19,10 +18,11 @@ router.post("/run/:agentId", async (req: Request, res: Response) => {
 
   try {
     const info = await detectRun(agent.workspacePath);
-    res.json(info);
+    const execution = await runDetectedProject(info, agent.workspacePath);
+    res.json({ ...info, ...execution });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Run detection failed";
-    res.status(500).json({ error: "detection_error", message });
+    const message = err instanceof Error ? err.message : "Run failed";
+    res.status(500).json({ error: "run_error", message });
   }
 });
 
