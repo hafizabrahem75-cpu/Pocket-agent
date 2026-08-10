@@ -3,8 +3,10 @@ import { getAllAgents, getAgent } from "../store/agents.js";
 import { toolRegistry } from "../tools/index.js";
 import { analyzeProject } from "../analyzer/index.js";
 import { WorkspaceError } from "../workspace/types.js";
+import { WORKSPACE_ROOT } from "../workspace/safety.js";
 import type { ChatMessage, ChatOptions } from "../ai/types.js";
 import type { ProjectAnalysis } from "../analyzer/types.js";
+import path from "node:path";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -84,22 +86,53 @@ function parseToolCall(content: string): ParsedToolCall | null {
 
 // ── Tool execution ────────────────────────────────────────────────────────────
 
-// Tools that accept a "path" input and should be scoped to the agent workspace.
-const FILE_TOOLS = new Set(["read_file", "write_file"]);
+// All coding tools operate on paths. When an agent has a workspacePath, every
+// path is resolved relative to that directory before the existing tool runs.
+const WORKSPACE_TOOLS = new Set([
+  "read_file",
+  "write_file",
+  "list_workspace",
+  "search_files",
+  "analyze_project",
+]);
 
 /**
- * Prepend the agent's workspacePath to any "path" input field so that file
- * tools operate inside the agent's directory rather than the workspace root.
+ * Resolve a tool path inside the agent's workspace and convert it back to the
+ * relative format expected by the existing workspace tools. This keeps both
+ * reads and writes inside the agent boundary, including for paths containing
+ * ".." segments or absolute paths supplied by the model.
  */
 function scopeInput(
   name: string,
   input: Record<string, unknown>,
   workspacePath: string | undefined,
 ): Record<string, unknown> {
-  if (!workspacePath || !FILE_TOOLS.has(name)) return input;
-  if (typeof input["path"] !== "string") return input;
-  const joined = `${workspacePath}/${input["path"]}`.replace(/\/+/g, "/");
-  return { ...input, path: joined };
+  if (!workspacePath || !WORKSPACE_TOOLS.has(name)) return input;
+
+  const agentRoot = path.resolve(WORKSPACE_ROOT, workspacePath);
+  const requestedPath =
+    typeof input["path"] === "string" && input["path"].trim()
+      ? input["path"]
+      : ".";
+  const resolvedPath = path.resolve(agentRoot, requestedPath);
+  const relativeToAgent = path.relative(agentRoot, resolvedPath);
+  const insideAgent =
+    relativeToAgent === "" ||
+    (relativeToAgent !== ".." &&
+      !relativeToAgent.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relativeToAgent));
+
+  if (!insideAgent) {
+    throw new WorkspaceError(
+      "Path escapes the agent workspacePath — directory traversal is not allowed",
+      "path_traversal",
+    );
+  }
+
+  return {
+    ...input,
+    path: path.relative(WORKSPACE_ROOT, resolvedPath) || ".",
+  };
 }
 
 async function executeTool(
@@ -118,9 +151,16 @@ async function executeTool(
     };
   }
 
-  const scopedInput = scopeInput(name, input, workspacePath);
-
   try {
+    if (name === "write_file" && !workspacePath) {
+      return {
+        output:
+          "write_file requires an agent with an existing workspacePath. Select an agent workspace before requesting code changes.",
+        ok: false,
+      };
+    }
+
+    const scopedInput = scopeInput(name, input, workspacePath);
     const result = await tool.execute(scopedInput);
     return { output: JSON.stringify(result), ok: true };
   } catch (err) {
@@ -194,7 +234,10 @@ Available tools:
 ${descriptions}`;
 }
 
-function buildSystemPrompt(analysis: ProjectAnalysis): string {
+function buildSystemPrompt(
+  analysis: ProjectAnalysis,
+  workspacePath: string | undefined,
+): string {
   const agents = getAllAgents();
 
   const agentList =
@@ -207,15 +250,21 @@ function buildSystemPrompt(analysis: ProjectAnalysis): string {
           )
           .join("\n");
 
-  return `You are Pocket Agent, a helpful AI assistant for managing and reasoning about AI agents.
+  const workspaceContext = workspacePath
+    ? `The selected agent workspacePath is "${workspacePath}". All file and project paths in tool inputs are relative to this directory. Never read or write outside it.`
+    : "No agent workspacePath is selected. Do not make file changes until the user selects an agent with a workspacePath.";
+
+  return `You are Pocket Agent, a coding agent that can inspect and modify the selected project's files.
 
 Current agents:
 ${agentList}
 
 ${buildProjectBlock(analysis)}
 
-Help the user manage their agents, answer questions about them, suggest names or configurations, or explain what agents can do.
-Be concise and practical. If asked to perform an action (create, delete, update), explain how to do it using the terminal commands rather than doing it yourself.
+${workspaceContext}
+
+When the user asks about or requests a code change, use the available tools to inspect the project and make the change yourself. First use analyze_project, list_workspace, search_files, or read_file as needed to understand the relevant code. Use write_file to apply requested changes, and then explain exactly what changed. Do not invent tools, use terminal commands, or claim a change was made without a successful write_file result. Keep changes focused on the user's request.
+For general agent-management questions, answer directly without using coding tools.
 ${buildToolsBlock()}`;
 }
 
@@ -232,7 +281,7 @@ export async function runChat(req: ChatRequest): Promise<ChatResponse> {
   );
 
   const messages: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(analysis) },
+    { role: "system", content: buildSystemPrompt(analysis, workspacePath) },
     { role: "user", content: req.message },
   ];
 

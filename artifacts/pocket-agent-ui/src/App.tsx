@@ -291,7 +291,10 @@ export default function App() {
           // Route anything that isn't a known command to the AI assistant
           const result = await api<ChatResponse>('/chat', {
             method: 'POST',
-            body: JSON.stringify({ message: trimmed }),
+            body: JSON.stringify({
+              message: trimmed,
+              ...(selectedAgent?.id ? { agentId: selectedAgent.id } : {}),
+            }),
           });
           if (result.toolInvocations?.length) {
             push(msg('tool', result.toolInvocations.map(t => {
