@@ -141,6 +141,8 @@ export default function App() {
   const [histIdx, setHistIdx] = useState(-1);
   const [selectedAgent, setSelectedAgent] = useState<PanelAgent | null>(null);
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -154,6 +156,11 @@ export default function App() {
 
   const push = useCallback((m: Message) => {
     setMessages(prev => [...prev, m]);
+  }, []);
+
+  const handlePreviewUrlChange = useCallback((url: string | null) => {
+    setPreviewUrl(url);
+    if (!url) setPreviewOpen(false);
   }, []);
 
   // resolve agent by name prefix or id prefix
@@ -360,7 +367,38 @@ export default function App() {
           <span className="flex-1 text-center text-xs font-mono text-muted-foreground tracking-widest">
             pocket-agent
           </span>
+           {previewUrl && (
+             <button
+               type="button"
+               onClick={() => setPreviewOpen(open => !open)}
+               aria-pressed={previewOpen}
+               className="rounded-md border border-border px-2 py-1 font-mono text-xs text-primary transition-colors hover:bg-muted/50"
+             >
+               {previewOpen ? 'hide preview' : 'view preview'}
+             </button>
+           )}
         </div>
+
+         {previewOpen && previewUrl && (
+           <section className="flex h-64 shrink-0 flex-col border-b border-border bg-background">
+             <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2">
+               <span className="font-mono text-xs text-muted-foreground">project preview</span>
+               <a
+                 href={previewUrl}
+                 target="_blank"
+                 rel="noreferrer"
+                 className="ml-auto font-mono text-xs text-primary hover:underline"
+               >
+                 open in new tab
+               </a>
+             </div>
+             <iframe
+               title="Running project preview"
+               src={previewUrl}
+               className="min-h-0 w-full flex-1 bg-white"
+             />
+           </section>
+         )}
 
          {openFilePath && <CodeEditor path={openFilePath} />}
 
@@ -397,7 +435,7 @@ export default function App() {
           />
         </div>
       </div>
-      <ProjectInfoPanel agent={selectedAgent} />
+       <ProjectInfoPanel agent={selectedAgent} onPreviewUrlChange={handlePreviewUrlChange} />
     </div>
   </div>
   );

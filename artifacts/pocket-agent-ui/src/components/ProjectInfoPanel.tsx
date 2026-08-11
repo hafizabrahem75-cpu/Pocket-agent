@@ -67,7 +67,13 @@ function Skeleton() {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function ProjectInfoPanel({ agent }: { agent: PanelAgent | null }) {
+export function ProjectInfoPanel({
+  agent,
+  onPreviewUrlChange,
+}: {
+  agent: PanelAgent | null;
+  onPreviewUrlChange: (previewUrl: string | null) => void;
+}) {
   const [info, setInfo]   = useState<ProjectInfo | null>(null);
   const [state, setState] = useState<LoadState>('idle');
 
@@ -75,19 +81,32 @@ export function ProjectInfoPanel({ agent }: { agent: PanelAgent | null }) {
     if (!agent) {
       setInfo(null);
       setState('idle');
+      onPreviewUrlChange(null);
       return;
     }
 
     let cancelled = false;
     setState('loading');
     setInfo(null);
+    onPreviewUrlChange(null);
 
     fetchProjectInfo(agent.id)
-      .then(data => { if (!cancelled) { setInfo(data); setState('loaded'); } })
-      .catch(() => { if (!cancelled) setState('error'); });
+      .then(data => {
+        if (!cancelled) {
+          setInfo(data);
+          setState('loaded');
+          onPreviewUrlChange(data.previewUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setState('error');
+          onPreviewUrlChange(null);
+        }
+      });
 
     return () => { cancelled = true; };
-  }, [agent?.id]);
+  }, [agent?.id, onPreviewUrlChange]);
 
   return (
     <div className="w-72 shrink-0 flex flex-col rounded-xl border border-border overflow-hidden shadow-2xl">
