@@ -50,7 +50,18 @@ const WHITELIST: WhitelistEntry[] = [
   { bin: "echo", allow: { kind: "any" } },
   { bin: "node", allow: { kind: "exact", sets: [["-v"]] } },
   { bin: "pnpm", allow: { kind: "exact", sets: [["-v"]] } },
-  { bin: "git",  allow: { kind: "exact", sets: [["status"]] } },
+  {
+    bin: "git",
+    allow: {
+      kind: "exact",
+      sets: [
+        ["status"],
+        ["status", "--short", "--branch"],
+        ["remote", "get-url", "origin"],
+        ["pull"],
+      ],
+    },
+  },
 ];
 
 const WHITELIST_BY_BIN = new Map(WHITELIST.map((e) => [e.bin, e]));

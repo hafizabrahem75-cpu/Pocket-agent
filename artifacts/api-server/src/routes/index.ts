@@ -10,6 +10,7 @@ import buildRouter from "./build.js";
 import runRouter from "./run.js";
 import deployRouter from "./deploy.js";
 import workspaceRouter from "./workspace.js";
+import githubRouter from "./github.js";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(buildRouter);
 router.use(runRouter);
 router.use(deployRouter);
 router.use(workspaceRouter);
+router.use(githubRouter);
 
 export default router;

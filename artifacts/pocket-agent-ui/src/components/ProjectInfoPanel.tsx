@@ -15,6 +15,15 @@ interface ProjectInfo {
   deploySupported: boolean;
 }
 
+interface GitHubInfo {
+  remoteUrl: string | null;
+  githubUrl: string | null;
+  status: 'connected' | 'not_github' | 'not_configured';
+  branch: string | null;
+  clean: boolean;
+  details: string[];
+}
+
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 // ── API ─────────────────────────────────────────────────────────────────────
@@ -63,6 +72,96 @@ function StatusDot({ on, labelOn, labelOff }: { on: boolean; labelOn: string; la
 
 function Skeleton() {
   return <span className="inline-block h-3 w-32 rounded bg-muted/60 animate-pulse" />;
+}
+
+async function fetchGitHubInfo(): Promise<GitHubInfo> {
+  const response = await fetch('/api/github');
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.message ?? 'Failed to load GitHub status');
+  return body;
+}
+
+function GitHubSection() {
+  const [info, setInfo] = useState<GitHubInfo | null>(null);
+  const [state, setState] = useState<LoadState>('loading');
+  const [pulling, setPulling] = useState(false);
+  const [pullMessage, setPullMessage] = useState<string | null>(null);
+
+  const load = () => {
+    setState('loading');
+    fetchGitHubInfo()
+      .then(data => {
+        setInfo(data);
+        setState('loaded');
+      })
+      .catch(() => setState('error'));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handlePull = async () => {
+    setPulling(true);
+    setPullMessage(null);
+    try {
+      const response = await fetch('/api/github/pull', { method: 'POST' });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.message ?? 'Git pull failed');
+      setPullMessage(body.message);
+      load();
+    } catch (err) {
+      setPullMessage(err instanceof Error ? err.message : 'Git pull failed');
+    } finally {
+      setPulling(false);
+    }
+  };
+
+  const statusLabel = state === 'loading'
+    ? 'Checking…'
+    : state === 'error'
+      ? 'Unavailable'
+      : info?.status === 'connected'
+        ? (info.clean ? 'Connected · clean' : 'Connected · changes')
+        : info?.status === 'not_github'
+          ? 'Remote is not GitHub'
+          : 'No GitHub remote';
+
+  return (
+    <section className="border-t border-border pt-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-primary/60 font-mono text-xs select-none">◉</span>
+        <span className="flex-1 text-xs font-mono uppercase tracking-widest text-muted-foreground">
+          GitHub
+        </span>
+        {state === 'loaded' && (
+          <span className={`text-xs font-mono ${info?.status === 'connected' ? 'text-emerald-400' : 'text-zinc-400'}`}>
+            {statusLabel}
+          </span>
+        )}
+      </div>
+
+      {state === 'loading' && <Skeleton />}
+      {state === 'error' && <p className="font-mono text-xs text-destructive">Failed to read repository status.</p>}
+      {state === 'loaded' && info && (
+        <>
+          <Row label="Repository">
+            {info.githubUrl
+              ? <a href={info.githubUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">{info.githubUrl}</a>
+              : <span className="text-muted-foreground">{info.remoteUrl ?? '—'}</span>}
+          </Row>
+          <Row label="Branch">{info.branch ?? '—'}</Row>
+          <button
+            type="button"
+            onClick={handlePull}
+            disabled={pulling || info.status !== 'connected'}
+            className="w-full rounded-md border border-border px-3 py-2 text-xs font-mono text-foreground transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {pulling ? 'pulling…' : 'pull from GitHub'}
+          </button>
+          {pullMessage && <p className="font-mono text-xs text-muted-foreground break-words">{pullMessage}</p>}
+        </>
+      )}
+    </section>
+  );
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
@@ -121,6 +220,7 @@ export function ProjectInfoPanel({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 py-4 bg-background space-y-5">
+        <GitHubSection />
 
         {/* ── Idle ── */}
         {state === 'idle' && (
