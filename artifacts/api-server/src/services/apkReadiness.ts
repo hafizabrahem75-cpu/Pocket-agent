@@ -7,6 +7,9 @@ import { analyzeProject } from "../analyzer/index.js";
 import type { DetectedFramework, ProjectAnalysis } from "../analyzer/types.js";
 import { detectBuild } from "./build.js";
 import type { Agent } from "../store/agents.js";
+import fs from "node:fs";
+import path from "node:path";
+import { validatePath } from "../workspace/safety.js";
 
 export interface ApkReadinessInfo {
   ready: boolean;
@@ -19,11 +22,41 @@ export interface ApkReadinessInfo {
   reason: string;
 }
 
-function inferOutputDirectory(frameworks: DetectedFramework[]): string | null {
-  // These are the static output conventions we can identify without reading
-  // or executing framework-specific configuration.
+function inferOutputDirectory(
+  frameworks: DetectedFramework[],
+  workspacePath?: string,
+): string | null {
   const names = new Set(frameworks.map((framework) => framework.name));
-  if (names.has("Vite") || names.has("Webpack")) return "dist";
+  if (names.has("Vite") || names.has("Webpack")) {
+    let workspace: string | null = null;
+    if (workspacePath) {
+      try {
+        workspace = validatePath(workspacePath);
+      } catch {
+        workspace = null;
+      }
+    }
+
+    // Prefer the actual nested asset directory used by this workspace.
+    if (workspace) {
+      for (const candidate of ["dist/public", "dist"]) {
+        const directory = path.join(workspace, candidate);
+        try {
+          if (
+            fs.statSync(directory).isDirectory() &&
+            fs.statSync(path.join(directory, "index.html")).isFile()
+          ) {
+            return candidate;
+          }
+        } catch {
+          // Try the next supported output convention.
+        }
+      }
+    }
+
+    // Standard Vite/Webpack projects use dist when no built output exists yet.
+    return "dist";
+  }
   return null;
 }
 
@@ -34,7 +67,10 @@ export async function checkApkReadiness(agent: Agent): Promise<ApkReadinessInfo>
   ]);
 
   const framework = build.detectedFramework;
-  const outputDirectory = inferOutputDirectory(analysis.frameworks);
+  const outputDirectory = inferOutputDirectory(
+    analysis.frameworks,
+    agent.workspacePath,
+  );
   const isFrontendSpa =
     analysis.projectType.primary === "frontend" &&
     analysis.projectType.tags.includes("spa");
