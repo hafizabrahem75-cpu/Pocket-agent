@@ -11,6 +11,7 @@ import runRouter from "./run.js";
 import deployRouter from "./deploy.js";
 import workspaceRouter from "./workspace.js";
 import githubRouter from "./github.js";
+import apkRouter from "./apk.js";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(runRouter);
 router.use(deployRouter);
 router.use(workspaceRouter);
 router.use(githubRouter);
+router.use(apkRouter);
 
 export default router;
