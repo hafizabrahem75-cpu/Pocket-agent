@@ -5,11 +5,20 @@
 
 import fs from "node:fs";
 import type { Agent } from "../store/agents.js";
+import { checkApkReadiness } from "./apkReadiness.js";
 import { resolveApkExportDirectory } from "./apkExport.js";
 
 export interface CapacitorExportWorkspace {
   agentWorkspace: string;
   exportDirectory: string;
+}
+
+export interface CapacitorExportPlan {
+  workspacePath: string | null;
+  exportPath: string | null;
+  expectedWebDirectory: string | null;
+  readyForInitialization: boolean;
+  reason: string;
 }
 
 /**
@@ -28,4 +37,38 @@ export function prepareCapacitorExportWorkspace(
     agentWorkspace: agent.workspacePath,
     exportDirectory,
   };
+}
+
+/**
+ * Describes the isolated workspace and web output expected by a future
+ * Capacitor initialization. This does not initialize Capacitor or Android.
+ */
+export async function planCapacitorExportWorkspace(
+  agent: Agent,
+): Promise<CapacitorExportPlan> {
+  const prepared = prepareCapacitorExportWorkspace(agent);
+
+  try {
+    const readiness = await checkApkReadiness(agent);
+    const readyForInitialization =
+      Boolean(prepared) && readiness.ready && Boolean(readiness.outputDirectory);
+
+    return {
+      workspacePath: prepared?.agentWorkspace ?? agent.workspacePath ?? null,
+      exportPath: prepared?.exportDirectory ?? null,
+      expectedWebDirectory: readiness.outputDirectory,
+      readyForInitialization,
+      reason: readyForInitialization
+        ? "Isolated export workspace and web output are ready for future Capacitor initialization."
+        : readiness.reason,
+    };
+  } catch {
+    return {
+      workspacePath: prepared?.agentWorkspace ?? agent.workspacePath ?? null,
+      exportPath: prepared?.exportDirectory ?? null,
+      expectedWebDirectory: null,
+      readyForInitialization: false,
+      reason: "The selected workspace could not be analyzed for future Capacitor initialization.",
+    };
+  }
 }
