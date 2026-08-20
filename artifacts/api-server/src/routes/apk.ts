@@ -6,6 +6,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getAgent } from "../store/agents.js";
 import { checkApkReadiness } from "../services/apkReadiness.js";
+import { verifyApkBuild } from "../services/apkBuild.js";
 
 const router: IRouter = Router();
 
@@ -21,6 +22,23 @@ router.post("/apk/readiness/:agentId", async (req: Request, res: Response) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : "APK readiness check failed";
     res.status(500).json({ error: "readiness_error", message });
+  }
+});
+
+// POST /api/apk/build/:agentId
+// Runs the detected static web build and verifies its output directory.
+router.post("/apk/build/:agentId", async (req: Request, res: Response) => {
+  const agent = getAgent(String(req.params.agentId));
+  if (!agent) {
+    res.status(404).json({ error: "not_found", message: "Agent not found" });
+    return;
+  }
+
+  try {
+    res.json(await verifyApkBuild(agent));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "APK web build verification failed";
+    res.status(500).json({ error: "build_verification_error", message });
   }
 });
 
