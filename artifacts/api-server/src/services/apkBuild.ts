@@ -73,7 +73,7 @@ export async function verifyApkBuild(agent: Agent): Promise<ApkBuildVerification
     encoding: "utf-8",
     timeout: 120_000,
     shell: false,
-    env: { ...process.env },
+    env: { ...process.env, BASE_PATH: process.env.BASE_PATH ?? "/" },
   });
 
   const stdout = result.stdout ?? "";
